@@ -25,3 +25,6 @@ libtool
 stamp-h
 stamp-h.in
 stamp-h1
+ofx2qif/*.ofx
+ofx2qif/*.qfx
+ofx2qif/*.qif
