@@ -48,13 +48,13 @@
 
 FILE *fpOut;
 
-const char *verString = "1.0.3";
+const char *progName = "ofx2qif";
+const char *verString = "0.9.?";
 
 void usage(const char *exeName)
 {
     fprintf(stderr, "usage: %s -i inFile [-o outFile]\n", exeName);
 }
-
 
 int ofx_proc_transaction_cb(const struct OfxTransactionData data, void * transaction_data)
 {
@@ -171,72 +171,72 @@ int ofx_proc_statement_cb(const struct OfxStatementData data, void * statement_d
 {
     struct tm temp_tm;
 
-    printf("!Account\n");
+    fprintf(fpOut, "!Account\n");
     if(data.account_id_valid==true)
     {
         /* Use the account id as the qif name of the account */
-        printf("N%s%s",data.account_id,"\n");
+        fprintf(fpOut, "N%s%s",data.account_id,"\n");
     }
     if(data.account_ptr->account_type_valid==true)
     {
         switch(data.account_ptr->account_type)
         {
         case OFX_CHECKING :
-            printf("TBank\n");
+            fprintf(fpOut, "TBank\n");
             break;
         case OFX_SAVINGS :
-            printf("TBank\n");
+            fprintf(fpOut, "TBank\n");
             break;
         case OFX_MONEYMRKT :
-            printf("TOth A\n");
+            fprintf(fpOut, "TOth A\n");
             break;
         case OFX_CREDITLINE :
-            printf("TOth L\n");
+            fprintf(fpOut, "TOth L\n");
             break;
         case OFX_CMA :
-            printf("TOth A\n");
+            fprintf(fpOut, "TOth A\n");
             break;
         case OFX_CREDITCARD :
-            printf("TCCard\n");
+            fprintf(fpOut, "TCCard\n");
             break;
         default:
             perror("WRITEME: ofx_proc_account() This is an unknown account type!");
         }
     }
-    printf("DOFX online account\n");
+    fprintf(fpOut, "DOFX online account\n");
 
     if(data.ledger_balance_date_valid==true)
     {
         temp_tm = *localtime(&(data.ledger_balance_date));
-        printf("/%d%s%d%s%d%s", temp_tm.tm_mday, "/", temp_tm.tm_mon+1, "/", temp_tm.tm_year+1900, "\n");
+        fprintf(fpOut, "/%d%s%d%s%d%s", temp_tm.tm_mon+1, "/", temp_tm.tm_mday, "/", temp_tm.tm_year+1900, "\n");
     }
     if(data.ledger_balance_valid==true)
     {
-        printf("$%.2f%s",data.ledger_balance,"\n");
+        fprintf(fpOut, "$%.2f%s",data.ledger_balance,"\n");
     }
-    printf("^\n");
+    fprintf(fpOut, "^\n");
     /*The transactions will follow, here is the header */
     if(data.account_ptr->account_type_valid==true)
     {
         switch(data.account_ptr->account_type)
         {
         case OFX_CHECKING :
-            printf("!Type:Bank\n");
+            fprintf(fpOut, "!Type:Bank\n");
             break;
         case OFX_SAVINGS :
-            printf("!Type:Bank\n");
+            fprintf(fpOut, "!Type:Bank\n");
             break;
         case OFX_MONEYMRKT :
-            printf("!Type:Oth A\n");
+           fprintf(fpOut, "!Type:Oth A\n");
             break;
         case OFX_CREDITLINE :
-            printf("!Type:Oth L\n");
+           fprintf(fpOut, "!Type:Oth L\n");
             break;
         case OFX_CMA :
-            printf("!Type:Oth A\n");
+            fprintf(fpOut, "!Type:Oth A\n");
             break;
         case OFX_CREDITCARD :
-            printf("!Type:CCard\n");
+            fprintf(fpOut, "!Type:CCard\n");
             break;
         default:
             perror("WRITEME: ofx_proc_account() This is an unknown account type!");
@@ -249,7 +249,6 @@ int ofx_proc_statement_cb(const struct OfxStatementData data, void * statement_d
 int ofx_proc_account_cb(const struct OfxAccountData data, void * account_data)
 {
     char dest_string[255]="";
-
 
     //    strncat(trans_list_buff, dest_string, QIF_FILE_MAX_SIZE - strlen(trans_list_buff));
     fputs(dest_string,fpOut);
@@ -270,7 +269,7 @@ int main (int argc, char *argv[])
     inputFilename[0] = '\0';
     outputFilename[0] = '\0';
 
-    fpOut = stdout;
+    fpOut = stdout; // Will be overwritten if a valid output filename is provided
 
     int c;
 
@@ -278,23 +277,15 @@ int main (int argc, char *argv[])
     {
         static struct option long_options[] =
         {
-            /* These options set a flag. */
             {"version", no_argument, 0, 0},
-            // {"verbose", no_argument,       &verbose_flag, 1},
-            // {"brief",   no_argument,       &verbose_flag, 0},
-            /* These options don\u2019t set a flag.
-               We distinguish them by their indices. */
-            // {"add",     no_argument,       0, 'a'},
-            // {"append",  no_argument,       0, 'b'},
-            {"in",      required_argument, 0, 'i'},
-            {"out",     required_argument, 0, 'o'},
-            // {"file",    required_argument, 0, 'f'},
+            {"input",      required_argument, 0, 'i'},
+            {"output",     required_argument, 0, 'o'},
             {0, 0, 0, 0}
         };
         /* getopt_long stores the option index here. */
         int option_index = 0;
 
-        c = getopt_long (argc, argv, "abc:d:f:",
+        c = getopt_long (argc, argv, "i:o:",
                          long_options, &option_index);
 
         /* Detect the end of the options. */
@@ -306,15 +297,6 @@ int main (int argc, char *argv[])
         case 0:
             fprintf(stderr, "version: %s\n", verString);
             return -1;
-            /* If this option set a flag, do nothing else now. */
-            #if 0
-            if (long_options[option_index].flag != 0)
-                break;
-            printf ("option %s", long_options[option_index].name);
-            if (optarg)
-                printf (" with arg %s", optarg);
-            printf ("\n");
-            #endif
             break;
 
         case 'i':
@@ -327,38 +309,57 @@ int main (int argc, char *argv[])
             /* getopt_long already printed an error message. */
             // fallthrough
         default:
-            usage("ofx2qfx");
+            usage(progName);
             return -1;
             break;
 
         }
     }
 
-    if (inputFilename[0])
+    if ('\0' == inputFilename[0])
     {
-        fprintf(stderr, "Input File: %s\n", inputFilename);
+        // No --input file provided.
+        // If there is a remaining command line argument, then assume
+        // that's our input file
+        if (optind < argc)
+        {
+            strcpy(inputFilename, argv[optind]);
+        }
+        else
+        {
+            fprintf(stderr, "No input file provided\n");
+            usage(progName);
+            return -1;
+        }
     }
 
-    /* Print any remaining command line arguments (not options). */
-    if (optind < argc)
+    if ('\0' == outputFilename[0])
     {
-        printf ("non-option ARGV-elements: ");
-        while (optind < argc)
-            printf ("%s ", argv[optind++]);
-        putchar ('\n');
+        // No --output file provided.
+        fpOut = stdout; // Yeah, we initialize fpOut to stdout so this is redundant
     }
-
-    return 0;
+    else
+    {
+        fpOut = fopen(outputFilename, "w");
+        if ((FILE *)(NULL) == fpOut)
+        {
+            fprintf(stderr, "Error opening output file %s\n", outputFilename);
+            usage(progName);
+            return -1;
+        }
+    }
 
     LibofxContextPtr libofx_context = libofx_get_new_context();
     ofx_set_statement_cb(libofx_context, ofx_proc_statement_cb, 0);
     ofx_set_account_cb(libofx_context, ofx_proc_account_cb, 0);
     ofx_set_transaction_cb(libofx_context, ofx_proc_transaction_cb, 0);
 
-    if(argc >= 2)
-    {
-        libofx_proc_file(libofx_context, argv[1], OFX);
-    }
+    fprintf(stderr, "Parsing input file %s\n", inputFilename);
+
+    libofx_proc_file(libofx_context, inputFilename, OFX);
+
+    fclose(fpOut);
+
     return libofx_free_context(libofx_context);
 }
 
